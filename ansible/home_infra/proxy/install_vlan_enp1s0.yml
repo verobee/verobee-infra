@@ -2,6 +2,16 @@
   hosts: all
   become: yes
   tasks:
+    - name: Check if enp1s0 is up
+      command: "ip link show enp1s0"
+      register: enp1s0_check
+      ignore_errors: yes
+
+    - name: Bring up enp1s0 interface if not up
+      command:
+        cmd: "ip link set enp1s0 up"
+      when: enp1s0_check.rc != 0 or "'state UP' not in enp1s0_check.stdout"
+
     - name: Check if VLAN 10 exists
       command: "ip link show enp1s0.10"
       register: vlan_check
@@ -12,12 +22,12 @@
         cmd: "ip link add link enp1s0 name enp1s0.10 type vlan id 10"
       when: vlan_check.rc != 0
 
-    - name: Set VLAN 10 interface up
+    - name: Set VLAN 10 interface up if created
       command:
         cmd: "ip link set enp1s0.10 up"
       when: vlan_check.rc != 0
 
-    - name: Assign IP address 192.168.10.1/24 to enp1s0.10 interface
+    - name: Assign IP address 192.168.10.1/24 to enp1s0.10 interface if created
       command:
         cmd: "ip addr add 192.168.10.1/24 dev enp1s0.10"
       when: vlan_check.rc != 0
@@ -26,7 +36,7 @@
       command:
         cmd: "ip addr show enp1s0.10"
 
-    - name: Save the changes (persistent configuration)
+    - name: Save the changes (persistent configuration) if VLAN 10 was created
       copy:
         dest: "/etc/network/interfaces.d/50-vlan10.cfg"
         content: |
