@@ -2,19 +2,25 @@
   hosts: all
   become: yes
   tasks:
-    - name: Create VLAN 10 on enp1s0 interface
+    - name: Check if VLAN 10 exists
+      command: "ip link show enp1s0.10"
+      register: vlan_check
+      ignore_errors: yes
+    
+    - name: Create VLAN 10 on enp1s0 interface if not exists
       command:
         cmd: "ip link add link enp1s0 name enp1s0.10 type vlan id 10"
-        creates: "/sys/class/net/enp1s0.10"
-    
+      when: vlan_check.rc != 0
+
     - name: Set VLAN 10 interface up
       command:
         cmd: "ip link set enp1s0.10 up"
+      when: vlan_check.rc != 0
 
     - name: Assign IP address 192.168.10.1/24 to enp1s0.10 interface
       command:
         cmd: "ip addr add 192.168.10.1/24 dev enp1s0.10"
-        creates: "/sys/class/net/enp1s0.10/address"
+      when: vlan_check.rc != 0
 
     - name: Verify VLAN 10 interface status
       command:
@@ -32,3 +38,4 @@
         owner: root
         group: root
         mode: '0644'
+      when: vlan_check.rc != 0
