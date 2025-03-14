@@ -1,4 +1,5 @@
 name: Deploy Proxy Server Configuration
+
 on:
   push:
     branches:
@@ -34,6 +35,16 @@ jobs:
           echo "Selected Task: ${{ github.event.inputs.task }}"
           ls playbooks/proxy/
 
+      - name: SSH Access Test
+        run: |
+          echo "Testing SSH access to the proxy server"
+          sshpass -p ${{ secrets.PROXY_SERVER_SSH_PW }} ssh -o StrictHostKeyChecking=no ${{ secrets.PROXY_SERVER_SSH_ID }}@${{ secrets.PROXY_SERVER_URL }} "echo SSH connection successful"
+        
+      - name: Check if we are root
+        run: |
+          echo "Checking if we are root"
+          sshpass -p ${{ secrets.PROXY_SERVER_SSH_PW }} ssh -o StrictHostKeyChecking=no ${{ secrets.PROXY_SERVER_SSH_ID }}@${{ secrets.PROXY_SERVER_URL }} "whoami"
+
       - name: Run Install OPNsense Playbook
         if: ${{ github.event.inputs.task == 'install_opnsense' }}
         env:
@@ -44,7 +55,7 @@ jobs:
           ansible-playbook -i inventory/hosts.ini playbooks/proxy/install_opnsense.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"
 
       - name: Run Configure Firewall Playbook
-        if: ${{ github.event.inputs.task == 'install_opnsense' }}  # Only run configure_firewall after install_opnsense
+        if: ${{ github.event.inputs.task == 'install_opnsense' }}
         env:
           PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
           PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
@@ -53,7 +64,7 @@ jobs:
           ansible-playbook -i inventory/hosts.ini playbooks/proxy/configure_firewall.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"
 
       - name: Run Check OPNsense Playbook
-        if: ${{ github.event.inputs.task == 'install_opnsense' }}  # Only run check_opnsense after configure_firewall
+        if: ${{ github.event.inputs.task == 'install_opnsense' }}
         env:
           PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
           PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
