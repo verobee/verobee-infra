@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      
   workflow_dispatch:
     inputs:
       task:
@@ -40,4 +39,6 @@ jobs:
         env:
           PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
           PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
-          PROXY_SERVER_SSH_PW: ${{ secrets
+          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
+        run: |
+          ansible-playbook -i inventory/hosts.ini playbooks/proxy/install_opnsense.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW"
