@@ -21,6 +21,17 @@ jobs:
           sudo apt update
           sudo apt install -y ansible sshpass
 
+      - name: Debug Secret Variables
+        run: |
+          echo "PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}"
+          echo "PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}"
+          echo "PROXY_SERVER_SSH_PW is set"
+
+      - name: Debug Task Selection
+        run: |
+          echo "Selected Task: ${{ github.event.inputs.task }}"
+          ls playbooks/proxy/
+
       - name: Run Ansible Playbook
         env:
           PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
