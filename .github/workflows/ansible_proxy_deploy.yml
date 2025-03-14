@@ -4,73 +4,56 @@ on:
   workflow_dispatch:
     inputs:
       task:
-        description: 'Task to run (install_opnsense, configure_firewall, check_opnsense)'
+        description: 'Task to run (configure_firewall, install_home_iac, install_vlan_enp1s0)'
         required: true
-        default: 'install_opnsense'
+        default: 'install_vlan_enp1s0'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Repository Checkout
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2. Install Ansible & Dependencies
       - name: Install Ansible & Dependencies
         run: |
           sudo apt update
           sudo apt install -y ansible sshpass
 
-      - name: Debug Secret Variables
-        run: |
-          echo "PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}"
-          echo "PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}"
-          echo "PROXY_SERVER_SSH_PW is set"
-
+      # 3. Debug Task Selection
       - name: Debug Task Selection
         run: |
           echo "Selected Task: ${{ github.event.inputs.task }}"
-          ls playbooks/proxy/
+          ls ansible/home_infra/
 
+      # 4. SSH Access Test
       - name: SSH Access Test
         run: |
           echo "Testing SSH access to the proxy server"
           sshpass -p ${{ secrets.PROXY_SERVER_SSH_PW }} ssh -o StrictHostKeyChecking=no ${{ secrets.PROXY_SERVER_SSH_ID }}@${{ secrets.PROXY_SERVER_URL }} "echo SSH connection successful"
-        
-      - name: Check if we are root
-        run: |
-          echo "Checking if we are root"
-          sshpass -p ${{ secrets.PROXY_SERVER_SSH_PW }} ssh -o StrictHostKeyChecking=no ${{ secrets.PROXY_SERVER_SSH_ID }}@${{ secrets.PROXY_SERVER_URL }} "whoami"
-      
+
+      # 5. Generate Inventory File
       - name: Generate Inventory File
         run: |
-          mkdir -p inventory
-          echo "[proxy]" > inventory/hosts.ini
-          echo "${{ secrets.PROXY_SERVER_URL }} ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> inventory/hosts.ini
+          mkdir -p ansible/home_infra/inventory
+          echo "[proxy]" > ansible/home_infra/inventory/hosts.ini
+          echo "${{ secrets.PROXY_SERVER_URL }} ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ansible/home_infra/inventory/hosts.ini
 
-      - name: Run Install OPNsense Playbook
-        if: ${{ github.event.inputs.task == 'install_opnsense' }}
-        env:
-          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
-          PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
-          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
+      # 6. Run Playbook from ansible/home_infra directory
+      - name: Run Playbook from ansible/home_infra
         run: |
-          ansible-playbook -i inventory/hosts.ini playbooks/proxy/install_opnsense.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"
-
-      - name: Run Configure Firewall Playbook
-        if: ${{ github.event.inputs.task == 'install_opnsense' }}
-        env:
-          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
-          PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
-          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
-        run: |
-          ansible-playbook -i inventory/hosts.ini playbooks/proxy/configure_firewall.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"
-
-      - name: Run Check OPNsense Playbook
-        if: ${{ github.event.inputs.task == 'install_opnsense' }}
-        env:
-          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
-          PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
-          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
-        run: |
-          ansible-playbook -i inventory/hosts.ini playbooks/proxy/check_opnsense.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"
+          case "${{ github.event.inputs.task }}" in
+            configure_firewall)
+              ansible-playbook -i ansible/home_infra/inventory/hosts.ini ansible/home_infra/proxy/configure_firewall.yml --extra-vars "ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }}"
+              ;;
+            install_vlan_enp1s0)
+              ansible-playbook -i ansible/home_infra/inventory/hosts.ini ansible/home_infra/proxy/install_vlan_enp1s0.yml --extra-vars "ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }}"
+              ;;
+            *)
+              echo "Invalid task specified"
+              exit 1
+              ;;
+          esac
