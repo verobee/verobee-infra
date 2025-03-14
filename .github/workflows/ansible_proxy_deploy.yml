@@ -1,0 +1,106 @@
+name: Deploy Proxy Server Configuration
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task to run (install_opnsense, check_opnsense, configure_firewall)'
+        required: true
+        default: 'install_opnsense'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Ansible & Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ansible sshpass
+
+      - name: Debug Secret Variables
+        run: |
+          echo "PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}"
+          echo "PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}"
+          echo "PROXY_SERVER_SSH_PW is set"
+
+      - name: Debug Task Selection
+        run: |
+          echo "Selected Task: ${{ github.event.inputs.task }}"
+          ls playbooks/proxy/
+
+      - name: Run Ansible Playbook as root
+        env:
+          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
+          PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
+          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
+        run: |
+          ansible-playbook -i inventory/hosts.ini playbooks/proxy/${{ github.event.inputs.task }}.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"name: Deploy Proxy Server Configuration
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task to run (install_opnsense, configure_firewall, check_opnsense)'
+        required: true
+        default: 'install_opnsense'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Ansible & Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ansible sshpass
+
+      - name: Debug Secret Variables
+        run: |
+          echo "PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}"
+          echo "PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}"
+          echo "PROXY_SERVER_SSH_PW is set"
+
+      - name: Debug Task Selection
+        run: |
+          echo "Selected Task: ${{ github.event.inputs.task }}"
+          ls playbooks/proxy/
+
+      - name: Run Install OPNsense Playbook
+        if: ${{ github.event.inputs.task == 'install_opnsense' }}
+        env:
+          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
+          PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
+          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
+        run: |
+          ansible-playbook -i inventory/hosts.ini playbooks/proxy/install_opnsense.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"
+
+      - name: Run Configure Firewall Playbook
+        if: ${{ github.event.inputs.task == 'install_opnsense' }}  # Only run configure_firewall after install_opnsense
+        env:
+          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
+          PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
+          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
+        run: |
+          ansible-playbook -i inventory/hosts.ini playbooks/proxy/configure_firewall.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"
+
+      - name: Run Check OPNsense Playbook
+        if: ${{ github.event.inputs.task == 'install_opnsense' }}  # Only run check_opnsense after configure_firewall
+        env:
+          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
+          PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
+          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
+        run: |
+          ansible-playbook -i inventory/hosts.ini playbooks/proxy/check_opnsense.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW ansible_become=True ansible_become_user=root ansible_become_password=$PROXY_SERVER_SSH_PW"
