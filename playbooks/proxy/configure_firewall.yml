@@ -1,0 +1,16 @@
+- name: Configure OPNsense Firewall Rules
+  hosts: proxy
+  become: yes
+  tasks:
+
+    - name: Open HTTP (80) and HTTPS (443) in Firewall
+      ansible.builtin.shell: |
+        pfctl -t web -T add 121.131.198.189
+        pfctl -t web -T add 0.0.0.0/0
+        pfctl -sr | grep "80\|443"
+      register: firewall_result
+      changed_when: false
+
+    - name: Display Firewall Rules
+      debug:
+        msg: "{{ firewall_result.stdout }}"
