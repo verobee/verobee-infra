@@ -1,9 +1,6 @@
 name: Deploy Proxy Server Configuration
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       task:
@@ -44,6 +41,11 @@ jobs:
         run: |
           echo "Checking if we are root"
           sshpass -p ${{ secrets.PROXY_SERVER_SSH_PW }} ssh -o StrictHostKeyChecking=no ${{ secrets.PROXY_SERVER_SSH_ID }}@${{ secrets.PROXY_SERVER_URL }} "whoami"
+      
+      - name: Generate Inventory File
+        run: |
+          echo "[proxy]" > inventory/hosts.ini
+          echo "${{ secrets.PROXY_SERVER_URL }} ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> inventory/hosts.ini
 
       - name: Run Install OPNsense Playbook
         if: ${{ github.event.inputs.task == 'install_opnsense' }}
