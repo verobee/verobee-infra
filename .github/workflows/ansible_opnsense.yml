@@ -1,0 +1,28 @@
+name: Configure Proxy Server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  configure-proxy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Ansible & Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ansible sshpass
+
+      - name: Run Ansible Playbook
+        env:
+          PROXY_SERVER_URL: ${{ secrets.PROXY_SERVER_URL }}
+          PROXY_SERVER_SSH_ID: ${{ secrets.PROXY_SERVER_SSH_ID }}
+          PROXY_SERVER_SSH_PW: ${{ secrets.PROXY_SERVER_SSH_PW }}
+        run: |
+          ansible-playbook -i inventory/hosts.ini playbooks/configure_proxy.yml --extra-vars "ansible_user=$PROXY_SERVER_SSH_ID ansible_password=$PROXY_SERVER_SSH_PW"

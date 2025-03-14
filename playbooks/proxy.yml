@@ -1,0 +1,34 @@
+- name: Install OPNsense on Proxy Server
+  hosts: proxy
+  become: yes
+  tasks:
+    - name: Install necessary dependencies
+      ansible.builtin.apt:
+        name: 
+          - curl
+          - unzip
+        state: present
+        update_cache: yes
+
+    - name: Download OPNsense Installer
+      ansible.builtin.get_url:
+        url: "https://mirror.dns-root.de/opnsense/releases/23.1/OPNsense-23.1-OpenSSL-amd64.img.bz2"
+        dest: "/tmp/OPNsense.img.bz2"
+        mode: '0644'
+
+    - name: Extract OPNsense Image
+      ansible.builtin.shell: |
+        bunzip2 -f /tmp/OPNsense.img.bz2
+
+    - name: Identify available disk for installation
+      ansible.builtin.shell: "lsblk -nd -o NAME | head -n 1"
+      register: disk_name
+
+    - name: Flash OPNsense image to disk
+      ansible.builtin.shell: |
+        dd if=/tmp/OPNsense.img of=/dev/{{ disk_name.stdout }} bs=4M status=progress
+      when: disk_name.stdout is defined
+
+    - name: Reboot the system
+      ansible.builtin.reboot:
+        msg: "Rebooting after OPNsense installation"
