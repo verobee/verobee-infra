@@ -1,0 +1,33 @@
+- name: Configure Internal Network
+  hosts: routers
+  become: yes
+  tasks:
+    - name: Check if netplan is installed
+      stat:
+        path: /etc/netplan
+      register: netplan_installed
+
+    - name: Fail if netplan is not installed
+      fail:
+        msg: "Netplan is not installed!"
+      when: not netplan_installed.stat.exists
+
+    - name: Configure network interfaces
+      copy:
+        dest: /etc/netplan/01-netcfg.yaml
+        content: |
+          network:
+            version: 2
+            renderer: networkd
+            ethernets:
+              enp2s0:
+                dhcp4: true
+              enp1s0:
+                dhcp4: false
+                addresses:
+                  - 192.168.1.1/24
+      notify: Apply netplan
+
+  handlers:
+    - name: Apply netplan
+      command: netplan apply

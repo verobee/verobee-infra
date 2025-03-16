@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       task:
-        description: 'Task to run (configure_firewall, install_home_iac, install_vlan_enp1s0)'
+        description: 'Tasks to run (comma-separated list, e.g., setup_dhcp, setup_internal_network, setup_iptables, setup_ufw)'
         required: true
-        default: 'install_vlan_enp1s0'
+        default: 'setup_ufw'
 
 jobs:
   deploy:
@@ -26,7 +26,7 @@ jobs:
       # 3. Debug Task Selection
       - name: Debug Task Selection
         run: |
-          echo "Selected Task: ${{ github.event.inputs.task }}"
+          echo "Selected Tasks: ${{ github.event.inputs.task }}"
           ls ansible/home_infra/
 
       # 4. SSH Access Test
@@ -42,18 +42,30 @@ jobs:
           echo "[proxy]" > ansible/home_infra/inventory/hosts.ini
           echo "${{ secrets.PROXY_SERVER_URL }} ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ansible/home_infra/inventory/hosts.ini
 
-      # 6. Run Playbook from ansible/home_infra directory
-      - name: Run Playbook from ansible/home_infra
+      # 6. Run Multiple Playbooks from ansible/home_infra
+      - name: Run Multiple Playbooks from ansible/home_infra
         run: |
-          case "${{ github.event.inputs.task }}" in
-            configure_firewall)
-              ansible-playbook -i ansible/home_infra/inventory/hosts.ini ansible/home_infra/proxy/configure_firewall.yml --extra-vars "ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }}"
-              ;;
-            install_vlan_enp1s0)
-              ansible-playbook -i ansible/home_infra/inventory/hosts.ini ansible/home_infra/proxy/install_vlan_enp1s0.yml --extra-vars "ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }}"
-              ;;
-            *)
-              echo "Invalid task specified"
-              exit 1
-              ;;
-          esac
+          for task in $(echo "${{ github.event.inputs.task }}" | tr ',' '\n'); do
+            case "$task" in
+              setup_dhcp)
+                echo "Running setup_dhcp playbook"
+                ansible-playbook -i ansible/home_infra/inventory/hosts.ini ansible/home_infra/proxy/setup_dhcp.yml --extra-vars "ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }}"
+                ;;
+              setup_internal_network)
+                echo "Running setup_internal_network playbook"
+                ansible-playbook -i ansible/home_infra/inventory/hosts.ini ansible/home_infra/proxy/setup_internal_network.yml --extra-vars "ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }}"
+                ;;
+              setup_iptables)
+                echo "Running setup_iptables playbook"
+                ansible-playbook -i ansible/home_infra/inventory/hosts.ini ansible/home_infra/proxy/setup_iptables.yml --extra-vars "ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }}"
+                ;;
+              setup_ufw)
+                echo "Running setup_ufw playbook"
+                ansible-playbook -i ansible/home_infra/inventory/hosts.ini ansible/home_infra/proxy/setup_ufw.yml --extra-vars "ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }}"
+                ;;
+              *)
+                echo "Invalid task specified: $task"
+                exit 1
+                ;;
+            esac
+          done

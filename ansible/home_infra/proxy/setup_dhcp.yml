@@ -1,0 +1,48 @@
+- name: Configure DHCP Server with Static IPs
+  hosts: routers
+  become: yes
+  tasks:
+    - name: Install DHCP server
+      apt:
+        name: isc-dhcp-server
+        state: present
+
+    - name: Check if DHCP server is installed
+      command: systemctl status isc-dhcp-server
+      register: dhcp_status
+      ignore_errors: yes
+
+    - name: Fail if DHCP server is not installed
+      fail:
+        msg: "ISC DHCP Server is not installed!"
+      when: dhcp_status.rc != 0
+
+    - name: Configure DHCP settings with static IP reservations
+      copy:
+        dest: /etc/dhcp/dhcpd.conf
+        content: |
+          subnet 192.168.1.0 netmask 255.255.255.0 {
+              range 192.168.1.130 192.168.1.230;
+              option routers 192.168.1.1;
+              option domain-name-servers 8.8.8.8, 8.8.4.4;
+
+              # 고정 IP 할당 예제
+              host node_1 {
+                  hardware ethernet AA:BB:CC:DD:EE:FF;
+                  fixed-address 192.168.1.101;
+              }
+          }
+      notify: Restart DHCP server
+
+    - name: Set DHCP interface
+      lineinfile:
+        path: /etc/default/isc-dhcp-server
+        line: 'INTERFACESv4="enp1s0"'
+        state: present
+      notify: Restart DHCP server
+
+  handlers:
+    - name: Restart DHCP server
+      service:
+        name: isc-dhcp-server
+        state: restarted
