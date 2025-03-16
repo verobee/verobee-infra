@@ -1,5 +1,5 @@
 - name: Configure Internal Network
-  hosts: routers
+  hosts: proxy
   become: yes
   tasks:
     - name: Check if netplan is installed

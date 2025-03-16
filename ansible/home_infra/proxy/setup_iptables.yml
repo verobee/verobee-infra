@@ -1,13 +1,13 @@
-- name: Configure IPTables to Allow All Traffic
-  hosts: routers
+- name: Configure IPTables to Allow All Traffic and Enable NAT for External Access
+  hosts: proxy
   become: yes
   tasks:
-    # 1️⃣ iptables 패키지 설치
+    # 1️⃣ iptables-persistent 패키지 설치
     - name: Install iptables-persistent
       apt:
         name: iptables-persistent
         state: present
-      when: ansible_os_family == "Debian"
+      when: ansible_os_family == "Debian"  # Debian 계열에서만 설치
 
     # 2️⃣ 모든 인바운드, 아웃바운드 트래픽 허용
     - name: Allow all inbound and outbound traffic
@@ -16,26 +16,36 @@
         iptables -P OUTPUT ACCEPT
         iptables -P FORWARD ACCEPT
         iptables -F  # 기존 규칙 삭제
-        iptables-save > /etc/iptables.rules
-      notify: Save iptables rules
+      notify: Save iptables rules  # 규칙을 저장하기 위한 핸들러 호출
 
-    # 3️⃣ 부팅 시 `iptables` 규칙 유지 설정
+    # 3️⃣ IP 포워딩 활성화
+    - name: Enable IP forwarding
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        state: present
+        reload: yes
+
+    # 4️⃣ NAT 설정 (Masquerading) - 내부 네트워크 트래픽을 외부 네트워크의 IP로 변환
+    - name: Configure NAT using iptables
+      shell: |
+        iptables -t nat -A POSTROUTING -o enp2s0 -j MASQUERADE
+      notify: Save iptables rules  # 규칙을 저장하기 위한 핸들러 호출
+
+    # 5️⃣ 부팅 시 iptables 규칙 유지 설정
     - name: Ensure iptables rules persist after reboot
       copy:
         dest: /etc/network/if-pre-up.d/iptables
         mode: '0755'
         content: |
           #!/bin/sh
-          iptables-restore < /etc/iptables.rules
+          iptables-restore < /etc/iptables.rules  # 부팅 시 iptables 규칙을 복원
 
-    # 4️⃣ `netfilter-persistent` 서비스 활성화
-    - name: Enable netfilter-persistent
-      service:
-        name: netfilter-persistent
-        enabled: yes
-        state: restarted
+    # 6️⃣ iptables 규칙 저장
+    - name: Save iptables rules
+      shell: iptables-save > /etc/iptables.rules  # 현재 iptables 규칙을 파일로 저장
 
-    # 5️⃣ 서버 재부팅 (필요한 경우)
+    # 7️⃣ 서버 재부팅 (필요한 경우)
     - name: Reboot the server to apply iptables changes
       reboot:
         msg: "Rebooting system to apply iptables settings..."
@@ -43,6 +53,6 @@
         post_reboot_delay: 10
 
   handlers:
+    # iptables 규칙을 저장하는 핸들러
     - name: Save iptables rules
-      shell: |
-        iptables-save > /etc/iptables.rules
+      shell: iptables-save > /etc/iptables.rules

@@ -1,45 +1,46 @@
-- name: Configure DHCP Server with Static IPs
-  hosts: routers
+- name: Configure DHCP Server with Static IPs for enp1s0
+  hosts: proxy
   become: yes
   tasks:
-    - name: Install DHCP server
+    - name: Check if isc-dhcp-server is installed
+      command: dpkg-query -W -f='${Status}' isc-dhcp-server
+      register: isc_dhcp_installed
+      ignore_errors: yes
+
+    - name: Install isc-dhcp-server if not installed
       apt:
         name: isc-dhcp-server
         state: present
+      when: isc_dhcp_installed.rc != 0  # 패키지가 설치되지 않은 경우에만 설치
 
-    - name: Check if DHCP server is installed
-      command: systemctl status isc-dhcp-server
-      register: dhcp_status
-      ignore_errors: yes
+    - name: Remove lines after line 111 in /etc/dhcp/dhcpd.conf
+      shell: |
+        if [ -f /etc/dhcp/dhcpd.conf ]; then
+          sed -i '112,$d' /etc/dhcp/dhcpd.conf
+        fi
 
-    - name: Fail if DHCP server is not installed
-      fail:
-        msg: "ISC DHCP Server is not installed!"
-      when: dhcp_status.rc != 0
+    - name: Add DHCP settings with static IP reservations for enp1s0 using echo
+      shell: |
+        echo "
+        subnet 192.168.1.0 netmask 255.255.255.0 {
+            range 192.168.1.200 192.168.1.230;   # DHCP 범위
+            option routers 192.168.1.1;
+            option domain-name-servers 8.8.8.8, 8.8.4.4;
 
-    - name: Configure DHCP settings with static IP reservations
-      copy:
-        dest: /etc/dhcp/dhcpd.conf
-        content: |
-          subnet 192.168.1.0 netmask 255.255.255.0 {
-              range 192.168.1.130 192.168.1.230;
-              option routers 192.168.1.1;
-              option domain-name-servers 8.8.8.8, 8.8.4.4;
+            # 고정 IP 할당 예제
+            host node_1 {
+                hardware ethernet 68:1d:ef:43:68:69;
+                fixed-address 192.168.1.101;
+            }
+        }
+        " | tee -a /etc/dhcp/dhcpd.conf
 
-              # 고정 IP 할당 예제
-              host node_1 {
-                  hardware ethernet AA:BB:CC:DD:EE:FF;
-                  fixed-address 192.168.1.101;
-              }
-          }
-      notify: Restart DHCP server
-
-    - name: Set DHCP interface
+    - name: Set DHCP interface to enp1s0 in /etc/default/isc-dhcp-server
       lineinfile:
         path: /etc/default/isc-dhcp-server
-        line: 'INTERFACESv4="enp1s0"'
-        state: present
-      notify: Restart DHCP server
+        regexp: '^INTERFACESv4='  # INTERFACESv4 설정이 이미 있을 경우 수정
+        line: 'INTERFACESv4="enp1s0"'  # enp1s0 설정 추가
+        state: present  # 해당 줄이 없으면 추가하고, 있으면 수정
 
   handlers:
     - name: Restart DHCP server
