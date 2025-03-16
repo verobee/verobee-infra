@@ -34,7 +34,7 @@ jobs:
         run: |
           echo "Testing SSH access to the proxy server"
           sshpass -p ${{ secrets.PROXY_SERVER_SSH_PW }} ssh -o StrictHostKeyChecking=no ${{ secrets.PROXY_SERVER_SSH_ID }}@${{ secrets.PROXY_SERVER_URL }} "echo SSH connection successful"
-
+        
       # 5. Generate Inventory File
       - name: Generate Inventory File
         run: |
@@ -45,7 +45,8 @@ jobs:
       # 6. Run Multiple Playbooks from ansible/home_infra
       - name: Run Multiple Playbooks from ansible/home_infra
         run: |
-          for task in $(echo "${{ github.event.inputs.task }}" | tr ',' '\n'); do
+          IFS=',' read -ra TASKS <<< "${{ github.event.inputs.task }}"
+          for task in "${TASKS[@]}"; do
             case "$task" in
               setup_dhcp)
                 echo "Running setup_dhcp playbook"
