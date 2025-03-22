@@ -1,0 +1,164 @@
+- name: Install and secure MySQL 8.0 on Ubuntu 24.04
+  hosts: cloudstack_mysql
+  become: yes
+  vars_files:
+    - vars/secrets.yml
+
+  tasks:
+    - name: Wait for apt lock to be released
+      shell: while lsof /var/lib/apt/lists/lock >/dev/null 2>&1; do sleep 1; done;
+
+    - name: Wait for dpkg lock to be released
+      shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done;
+
+    - name: Kill any stale apt processes
+      shell: |
+        pkill -9 apt || true
+        pkill -9 apt-get || true
+        pkill -9 dpkg || true
+      ignore_errors: yes
+
+    - name: Clean apt lock files
+      shell: |
+        rm -f /var/lib/apt/lists/lock
+        rm -f /var/cache/apt/archives/lock
+        rm -f /var/lib/dpkg/lock*
+      ignore_errors: yes
+
+    - name: Install required dependencies
+      apt:
+        name:
+          - gnupg
+          - curl
+          - software-properties-common
+          - wget
+          - libmecab2
+          - libsasl2-2
+          - libsasl2-modules-db
+        state: present
+        update_cache: yes
+
+    - name: Add MySQL GPG key
+      shell: |
+        curl -fsSL https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 | gpg --dearmor -o /etc/apt/trusted.gpg.d/mysql.gpg
+      args:
+        creates: /etc/apt/trusted.gpg.d/mysql.gpg
+
+    - name: Add MySQL repository
+      apt_repository:
+        repo: "deb [trusted=yes] http://repo.mysql.com/apt/ubuntu noble mysql-8.0"
+        state: present
+        filename: mysql
+        update_cache: yes
+
+    - name: Remove conflicting packages
+      apt:
+        name:
+          - mysql-common
+          - mysql-community-server
+          - mysql-community-client
+        state: absent
+        purge: yes
+      ignore_errors: yes
+
+    - name: Clean MySQL directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /var/lib/mysql
+        - /var/log/mysql
+        - /etc/mysql
+      ignore_errors: yes
+
+    - name: Install MySQL packages
+      apt:
+        name:
+          - mysql-server
+          - mysql-client
+          - python3-mysqldb
+        state: present
+        update_cache: yes
+        allow_unauthenticated: yes
+
+    - name: Create MySQL directories with correct permissions
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: mysql
+        group: mysql
+        mode: '0750'
+      with_items:
+        - /var/run/mysqld
+        - /var/lib/mysql
+        - /var/log/mysql
+        - /etc/mysql/mysql.conf.d
+
+    - name: Create MySQL configuration
+      template:
+        src: templates/my.cnf.j2
+        dest: /etc/mysql/my.cnf
+        owner: mysql
+        group: mysql
+        mode: '0644'
+
+    - name: Initialize MySQL data directory
+      command: mysqld --initialize-insecure --user=mysql
+      args:
+        creates: /var/lib/mysql/mysql
+      ignore_errors: yes
+
+    - name: Ensure correct ownership of MySQL directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: mysql
+        group: mysql
+        recurse: yes
+      with_items:
+        - /var/lib/mysql
+        - /var/log/mysql
+        - /var/run/mysqld
+
+    - name: Start MySQL service
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    - name: Wait for MySQL to start
+      wait_for:
+        path: /var/run/mysqld/mysqld.sock
+        state: present
+        timeout: 30
+
+    - name: Get MySQL root password status
+      command: mysql -NBe "SELECT plugin FROM mysql.user WHERE user = 'root' AND host = 'localhost';"
+      register: root_password_status
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Update MySQL root password for localhost root account
+      mysql_user:
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: root
+        host: localhost
+        password: "{{ mysql_root_password }}"
+        check_implicit_admin: yes
+        state: present
+      when: root_password_status.stdout != "auth_socket"
+
+    - name: Create database user with privileges
+      mysql_user:
+        name: "{{ mysql_user }}"
+        password: "{{ mysql_password }}"
+        host: "localhost"
+        priv: "*.*:ALL"
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+  handlers:
+    - name: Restart MySQL
+      service:
+        name: mysql
+        state: restarted

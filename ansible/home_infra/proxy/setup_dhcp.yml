@@ -1,6 +1,21 @@
 - name: Configure DHCP Server with Static IPs for enp1s0
   hosts: proxy
   become: yes
+  vars:
+    dhcp_interface: enp1s0
+    dhcp_subnet: 192.168.1.0
+    dhcp_netmask: 255.255.255.0
+    dhcp_range_start: 192.168.1.230
+    dhcp_range_end: 192.168.1.245
+    dhcp_gateway: 192.168.1.1
+    dhcp_dns: [8.8.8.8, 8.8.4.4]
+
+    # MAC 주소 기반 예약 IP 리스트 (DHCP Reservation)
+    dhcp_reserved_hosts:
+      - name: node_1
+        mac: "68:1d:ef:43:68:69"
+        ip: "192.168.1.11"
+
   tasks:
     - name: Check if isc-dhcp-server is installed
       command: dpkg-query -W -f='${Status}' isc-dhcp-server
@@ -11,36 +26,34 @@
       apt:
         name: isc-dhcp-server
         state: present
-      when: isc_dhcp_installed.rc != 0  # 패키지가 설치되지 않은 경우에만 설치
+      when: isc_dhcp_installed.rc != 0
 
-    - name: Remove lines after line 111 in /etc/dhcp/dhcpd.conf
-      shell: |
-        if [ -f /etc/dhcp/dhcpd.conf ]; then
-          sed -i '112,$d' /etc/dhcp/dhcpd.conf
-        fi
+    - name: Configure DHCP with reservations
+      blockinfile:
+        path: /etc/dhcp/dhcpd.conf
+        marker: "# {mark} VEROBEE DHCP CONFIG"
+        block: |
+          subnet {{ dhcp_subnet }} netmask {{ dhcp_netmask }} {
+              range {{ dhcp_range_start }} {{ dhcp_range_end }};
+              option routers {{ dhcp_gateway }};
+              option domain-name-servers {{ dhcp_dns | join(', ') }};
 
-    - name: Add DHCP settings with static IP reservations for enp1s0 using echo
-      shell: |
-        echo "
-        subnet 192.168.1.0 netmask 255.255.255.0 {
-            range 192.168.1.200 192.168.1.230;   # DHCP 범위
-            option routers 192.168.1.1;
-            option domain-name-servers 8.8.8.8, 8.8.4.4;
+              {% for host in dhcp_reserved_hosts %}
+              host {{ host.name }} {
+                  hardware ethernet {{ host.mac }};
+                  fixed-address {{ host.ip }};
+              }
+              {% endfor %}
+          }
+      notify: Restart DHCP server
 
-            # 고정 IP 할당 예제
-            host node_1 {
-                hardware ethernet 68:1d:ef:43:68:69;
-                fixed-address 192.168.1.101;
-            }
-        }
-        " | tee -a /etc/dhcp/dhcpd.conf
-
-    - name: Set DHCP interface to enp1s0 in /etc/default/isc-dhcp-server
+    - name: Set DHCP interface to {{ dhcp_interface }}
       lineinfile:
         path: /etc/default/isc-dhcp-server
-        regexp: '^INTERFACESv4='  # INTERFACESv4 설정이 이미 있을 경우 수정
-        line: 'INTERFACESv4="enp1s0"'  # enp1s0 설정 추가
-        state: present  # 해당 줄이 없으면 추가하고, 있으면 수정
+        regexp: '^INTERFACESv4='
+        line: 'INTERFACESv4="{{ dhcp_interface }}"'
+        state: present
+      notify: Restart DHCP server
 
   handlers:
     - name: Restart DHCP server

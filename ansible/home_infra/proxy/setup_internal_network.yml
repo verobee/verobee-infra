@@ -15,6 +15,7 @@
     - name: Configure network interfaces
       copy:
         dest: /etc/netplan/01-netcfg.yaml
+        force: yes
         content: |
           network:
             version: 2
@@ -27,6 +28,14 @@
                 addresses:
                   - 192.168.1.1/24
       notify: Apply netplan
+
+    - name: Debug file stat
+      stat:
+        path: /etc/netplan/01-netcfg.yaml
+      register: netcfg_file
+
+    - debug:
+        msg: "파일 존재 여부: {{ netcfg_file.stat.exists }}"
 
   handlers:
     - name: Apply netplan
