@@ -1,0 +1,32 @@
+- name: Setup Nginx properly
+  hosts: nginx
+  become: yes
+  tasks:
+    - name: Check if nginx is already installed
+      command: dpkg -s nginx
+      register: nginx_installed
+      ignore_errors: yes
+
+    - name: Update apt cache (only if nginx not installed)
+      apt:
+        update_cache: yes
+      when: nginx_installed.rc != 0
+
+    - name: Install Nginx if not present
+      apt:
+        name: nginx
+        state: present
+      when: nginx_installed.rc != 0
+      notify: Restart Nginx
+
+    - name: Ensure Nginx is enabled
+      service:
+        name: nginx
+        enabled: yes
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+        enabled: yes
