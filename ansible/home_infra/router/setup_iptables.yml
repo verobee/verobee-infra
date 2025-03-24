@@ -1,0 +1,43 @@
+- name: Configure IPTables to Allow All Traffic and Enable NAT for External Access
+  hosts: router
+  become: yes
+  vars:
+    external_interface: enp2s0
+
+  tasks:
+    - name: Install iptables-persistent
+      apt:
+        name: iptables-persistent
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Set default iptables policies to ACCEPT and flush existing rules
+      shell: |
+        iptables -P INPUT ACCEPT
+        iptables -P OUTPUT ACCEPT
+        iptables -P FORWARD ACCEPT
+        iptables -F
+        iptables -t nat -F
+      notify: Save iptables rules
+
+    - name: Configure NAT using iptables (MASQUERADE on {{ external_interface }})
+      shell: |
+        iptables -t nat -A POSTROUTING -o {{ external_interface }} -j MASQUERADE
+      notify: Save iptables rules
+
+    - name: Enable IPv4 forwarding permanently
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        state: present
+        reload: yes
+
+    - name: Remove legacy iptables restore script if exists
+      file:
+        path: /etc/network/if-pre-up.d/iptables
+        state: absent
+
+  handlers:
+    - name: Save iptables rules
+      shell: iptables-save > /etc/iptables/rules.v4

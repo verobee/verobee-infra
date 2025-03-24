@@ -1,5 +1,5 @@
 - name: Configure DHCP Server with Static IPs for enp1s0
-  hosts: proxy
+  hosts: router
   become: yes
   vars:
     dhcp_interface: enp1s0

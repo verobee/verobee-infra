@@ -60,11 +60,11 @@ brew install sshpass
 ### 실행 명령어
 
 ```bash
-ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/proxy/update_apt.yml -vvv
-ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/proxy/setup_internal_network.yml -vvv
-ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/proxy/setup_iptables.yml -vvv
-ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/proxy/setup_dhcp.yml -vvv
-ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/proxy/setup_ufw.yml -vvv
+ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/update_apt.yml -vvv
+ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_internal_network.yml -vvv
+ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_dhcp.yml -vvv
+ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_iptables.yml -vvv
+ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_ufw.yml -vvv
 ```
 
 > ⚠️ `--check`는 실제 적용 없이 실행 예시입니다. 실제 적용 시에는 제거하세요.

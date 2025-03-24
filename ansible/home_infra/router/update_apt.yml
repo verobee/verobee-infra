@@ -1,5 +1,5 @@
 - name: Configure Internal Network
-  hosts: proxy
+  hosts: router
   become: yes
   tasks:
     - name: update apt
