@@ -46,7 +46,7 @@ brew install sshpass
 
 ---
 
-## ⚙️ 3. 네트워크 설정 (Ansible Playbook)
+## ⚙️ 3. Router 설정 (Ansible Playbook)
 
 내부망 구성을 위한 네트워크 설정은 아래 순서대로 실행하세요:
 
@@ -67,72 +67,19 @@ ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_
 ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_ufw.yml -vvv
 ```
 
-> ⚠️ `--check`는 실제 적용 없이 실행 예시입니다. 실제 적용 시에는 제거하세요.
-
 ---
 
-## 🌐 4. 서비스 설치 (Nginx / MariaDB)
+## 4. CLOUDSTACK 설치
 
-### nginx 설치
-
+### CLOUDSTACK 내부 DB 설치
 ```bash
-ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/nginx/install_nginx.yml -vvv
+ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/cloudstack/mysql/update_apt.yml -vvv
+ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/cloudstack/mysql/install_mysql.yml -vvv
 ```
-
-### MariaDB 설치
-
-```bash
-ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/mariadb/install_mariadb.yml -vvv
-```
-
-> 이 서비들은 CloudStack Manager가 사용하는 DB 및 웹 UI 서비입니다.
-
----
-
-## ☁️ 5. CloudStack 구성 단계
-
-### 🔧 CloudStack Manager 설치
-
-- Ryzen PC (**Ubuntu 24.04.1 LTS**) 기반에 설치
-- 외부 MariaDB와 연동
-- CloudStack Web UI 및 API 구독 확인
-
-### 💻 CloudStack Node 설치 및 연결
-
-- N100 장비에 KVM 기반 하이퍼바이저 설치
-- CloudStack Manager에 Host 등록
-- 가상 네트워크 구성
-
-### 🚀 CloudStack CKS (Container Service) 설정
-
-- CloudStack의 Kubernetes Service 활성화
-- 기본 클러스터 구성 및 테스트
-
----
-
-## 📁 디렉토리 구조 예시
-
-```bash
-ansible/
-├── inventory/
-│   └── hosts.ini
-├── home_infra/
-│   ├── proxy/
-│   │   ├── setup_internal_network.yml
-│   │   ├── setup_iptables.yml
-│   │   ├── setup_dhcp.yml
-│   │   └── setup_ufw.yml
-│   ├── nginx/
-│   │   └── install_nginx.yml
-│   └── mariadb/
-│       └── install_mariadb.yml
-```
-
----
 
 ## 📌 참고 사항
 
-- **모든 시스템은 Ubuntu 24.04.1 LTS에서 구성되었습니다.**
+- **모든 시스템은 Ubuntu 24.04.2 LTS에서 구성되었습니다.**
 - **Ryzen PC**는 nginx, Cloud Manager, KVM, DHCP, MariaDB, 파일 서비 등 몬스터 서비를 통합 운영하며, 내부망의 DHCP 및 NAT 중심 역할을 발표합니다.
 - **N100** 노드는 CloudStack 노드 전용으로 사용하며, 경략 가상머신 운영에 적합합니다.
 - 비관리형 스위치를 통해 모든 장비를 유선 연결하고, 네트워크 제어는 Ryzen PC가 단어합니다.

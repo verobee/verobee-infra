@@ -1,1 +1,2 @@
 ansible/inventory/hosts.ini
+ansible/home_infra/cloudstack/mysql/vars/secrets.yml

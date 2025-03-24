@@ -1,0 +1,17 @@
+- name: Configure Internal Network
+  hosts: cloudstack_mysql
+  become: yes
+  tasks:
+    - name: update apt
+      apt:
+        update_cache: yes
+
+    - name: upgrade apt
+      apt:
+        upgrade: dist
+        purge: yes
+        autoremove: yes
+        
+    - name: update apt
+      apt:
+        update_cache: yes
