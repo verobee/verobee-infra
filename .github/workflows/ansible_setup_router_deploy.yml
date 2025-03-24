@@ -1,0 +1,50 @@
+name: Deploy Proxy Server Configuration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Repository Checkout
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. Install Ansible & Dependencies
+      - name: Install Ansible & Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ansible sshpass
+
+      # 3. SSH Access Test
+      - name: SSH Access Test
+        run: |
+          echo "Testing SSH access to the proxy server"
+          sshpass -p ${{ secrets.PROXY_SERVER_SSH_PW }} ssh -o StrictHostKeyChecking=no ${{ secrets.PROXY_SERVER_SSH_ID }}@${{ secrets.PROXY_SERVER_URL }} "echo SSH connection successful"
+        
+      # 4. Generate Inventory File
+      - name: Generate Inventory File
+        run: |
+          mkdir -p ansible/inventory
+          echo "[router]" > ansible/inventory/hosts.ini
+          echo "home-router1 ansible_host=${{ secrets.PROXY_SERVER_URL }} ansible_user=${{ secrets.PROXY_SERVER_SSH_ID }} ansible_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_become=True ansible_become_user=root ansible_become_password=${{ secrets.PROXY_SERVER_SSH_PW }} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ansible/inventory/hosts.ini
+
+      # 5. Run All Playbooks
+      - name: Run Multiple Playbooks from ansible/home_infra
+        run: |
+          echo "Running update_apt playbook"
+          ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/update_apt.yml -vvv
+
+          echo "Running setup_internal_network playbook"
+          ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_internal_network.yml -vvv
+
+          echo "Running setup_dhcp playbook"
+          ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_dhcp.yml -vvv
+
+          echo "Running setup_iptables playbook"
+          ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_iptables.yml -vvv
+
+          echo "Running setup_ufw playbook"
+          ansible-playbook -i ansible/inventory/hosts.ini ansible/home_infra/router/setup_ufw.yml -vvv

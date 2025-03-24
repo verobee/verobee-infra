@@ -1,5 +1,5 @@
 - name: Configure UFW Firewall and Ensure Persistence
-  hosts: proxy
+  hosts: router
   become: yes
   tasks:
     # 1️⃣ UFW 패키지 설치
